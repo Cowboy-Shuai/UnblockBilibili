@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩解析辅助
 // @namespace           https://github.com/vcheckzen/UnblockBilibili/blob/master/loliloli.user.js
-// @version             0.0.6.5.1
+// @version             0.0.6.6
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         为哔哩哔哩视频注入一键解析按钮
 // @author              https://github.com/vcheckzen
@@ -27,6 +27,7 @@
         return;
     }
 
+    const waiterPoor = [];
     const rightLists = ['.r-con', '.plp-r'];
 
     const payVideo = function () {
@@ -51,26 +52,37 @@
             const bvid = __INITIAL_STATE__.videoData.bvid;
             analysisServer += bilibiliHost + 'video/' + bvid + (p ? '&p=' + p : '');
         }
-        window.open(analysisServer);
+        window.open(analysisServer + '&t=' + Date.now());
     };
 
-    const waitElements = function (selector, callback, fail, interval, timeout) {
+
+    const waitElements = function (selector, callback, noWaiterPool, fail, interval, timeout) {
         interval = interval || 500;
         timeout = timeout || 10000;
-        let elems = null, iWaitor = null, tWaitor = null;
-        iWaitor = setInterval(() => {
+        let elems = null, iWaiter = null, tWaiter = null;
+        const doCleaning = function () {
+            if (noWaiterPool) {
+                clearTimeout(iWaiter);
+                clearTimeout(tWaiter);
+            } else {
+                waiterPoor.forEach(waitor => clearTimeout(waitor));
+            }
+        }
+
+        iWaiter = setInterval(() => {
             elems = document.querySelectorAll(selector);
             if (elems.length) {
-                clearInterval(iWaitor);
-                clearTimeout(tWaitor);
+                doCleaning();
                 if (!payVideo()) elems.forEach(elem => callback(elem));
             }
         }, interval);
-        tWaitor = setTimeout(() => {
-            clearInterval(iWaitor);
-            clearTimeout(tWaitor);
+
+        tWaiter = setTimeout(() => {
+            doCleaning();
             if (typeof fail === 'function') fail();
         }, timeout);
+
+        if (!noWaiterPool) waiterPoor.push(iWaiter, tWaiter);
     };
 
     const registerAnalysisButton = function registerAnalysisButton() {
@@ -112,7 +124,7 @@
                 if (btn && !player.isFullScreen()) btn.style.display = 'none';
                 else btn.style.display = 'initial';
             });
-        });
+        }, true);
 
         rightLists.forEach(selector => {
             const el = document.querySelector(selector);
