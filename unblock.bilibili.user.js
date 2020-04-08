@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩番剧解锁
 // @namespace           https://github.com/vcheckzen/UnblockBilibili
-// @version             0.1.9.3
+// @version             0.1.9.4
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         大会员账号共享解锁脚本
 // @author              https://github.com/vcheckzen
@@ -17,115 +17,151 @@
     'use strict';
     // 目前看视频会自动切换到会员账号，其他页面会切回来，暂时没有精力实现精细的登录控制。
     // 下行双引号里面填写大会员 Cookie。复制得到的 Cookie，不要做任何修改，直接粘贴保存。
-    // 请务必清空哔哩哔哩 Cookie 和 localStorage 重新登录后再使用。
-    const ORIGINAL_VIP_COOKIES = "";
+    // 请务必清空哔哩哔哩 Cookie 和 LocalStorage 重新登录后再使用。
+    const ORIGINAL_VIP_COOKIE_STRING = "";
 
     // 下行双引号里的数字用于控制画质，从高到低依次为 116，112，80，64，32，16，自适应对应 0。
     const CURRENT_QUALITY = "116";
 
-    const NEEDED_VIP_COOKIES_KEYS = ['bili_jct', 'DedeUserID', 'DedeUserID__ckMd5', 'sid', 'SESSDATA', 'CURRENT_QUALITY'];
-    const STORAGE_UTIL = {
+    const NEEDED_VIP_COOKIE_KEYS = ['bili_jct', 'DedeUserID', 'DedeUserID__ckMd5', 'sid', 'SESSDATA', 'CURRENT_QUALITY'];
+    const UNBLOCK_UTIL = {
         cookie: {
-            set: (cookie, callback) => {
+            set: cookie => {
                 'secure session sameSite hostOnly'.split(' ').forEach(key => delete cookie[key]);
-                GM.cookie.set(cookie).then(error => callback(error));
+                return GM.cookie.set(cookie);
             },
-            list: (option, callback) => GM.cookie.list(option).then(cookies => callback(cookies)),
-            delete: (option, callback) => GM.cookie.delete(option).then(() => callback())
+            list: option => GM.cookie.list(option),
+            delete: option => GM.cookie.delete(option)
         },
         localStorage: {
             set: (key, value) => window.localStorage.setItem(key, JSON.stringify(value)),
             get: key => JSON.parse(window.localStorage.getItem(key)),
             delete: key => window.localStorage.removeItem(key)
+        },
+        operation: {
+            isLocked: () => window.localStorage.getItem('OPRATION_LOCK'),
+            lock: () => window.localStorage.setItem('OPRATION_LOCK', true),
+            unlock: () => window.localStorage.removeItem('OPRATION_LOCK'),
+            promiseAll: (array, singlePromise) => {
+                const promises = [];
+                array.forEach(elem => promises.push(singlePromise(elem)));
+                return Promise.all(promises);
+            }
         }
-    };
-    const OPERATION_UTIL = {
-        isLocked: () => STORAGE_UTIL.localStorage.get('OPRATION_LOCK'),
-        lock: () => STORAGE_UTIL.localStorage.set('OPRATION_LOCK', true),
-        unlock: () => STORAGE_UTIL.localStorage.delete('OPRATION_LOCK')
     };
 
     const FORMATED_VIP_COOKIES = (() => {
         let formatedCookies = {};
-        if (ORIGINAL_VIP_COOKIES !== "") {
-            const cookies = ORIGINAL_VIP_COOKIES.split('; ');
+        if (ORIGINAL_VIP_COOKIE_STRING !== '') {
+            const cookies = ORIGINAL_VIP_COOKIE_STRING.split('; ');
             cookies.forEach(cookie => {
                 const kv = cookie.split('=');
-                if (NEEDED_VIP_COOKIES_KEYS.indexOf(kv[0]) >= 0) {
+                if (NEEDED_VIP_COOKIE_KEYS.indexOf(kv[0]) >= 0) {
                     formatedCookies[kv[0]] = kv[1];
                 }
             });
         } else {
-            formatedCookies = STORAGE_UTIL.localStorage.get('FORMATED_VIP_COOKIES') || formatedCookies;
+            formatedCookies = UNBLOCK_UTIL.localStorage.get('FORMATED_VIP_COOKIES') || formatedCookies;
         }
         formatedCookies.CURRENT_QUALITY = CURRENT_QUALITY;
-        const player_settings = STORAGE_UTIL.localStorage.get('bilibili_player_settings') || { setting_config: {} };
-        player_settings.setting_config.defquality = parseInt(CURRENT_QUALITY);
-        STORAGE_UTIL.localStorage.set('FORMATED_VIP_COOKIES', formatedCookies);
-        STORAGE_UTIL.localStorage.set('bilibili_player_settings', player_settings);
+        UNBLOCK_UTIL.localStorage.set('FORMATED_VIP_COOKIES', formatedCookies);
         return formatedCookies;
     })();
 
-    if (Object.getOwnPropertyNames(FORMATED_VIP_COOKIES).length !== NEEDED_VIP_COOKIES_KEYS.length) {
+    if (Object.getOwnPropertyNames(FORMATED_VIP_COOKIES).length !== NEEDED_VIP_COOKIE_KEYS.length) {
         if (confirm('哔哩哔哩番剧解锁：大会员 Cookie 不正确，脚本无法正常运行，是否查看详细使用说明？')) {
             location.href = 'https://logi.im/script/unblocking-bilibili-without-perception.html';
         }
         return;
     }
 
-    const saveUserCookie = callback => STORAGE_UTIL.cookie.list({}, cookies => {
-        if (!document.cookie.includes('CURRENT_QUALITY')) {
-            cookies.push({ "name": "CURRENT_QUALITY", "domain": ".bilibili.com", "path": "/", "value": CURRENT_QUALITY });
-        }
-        STORAGE_UTIL.localStorage.set('USER_COOKIES', cookies);
-        let countOfCookies = cookies.length;
-        cookies.forEach(cookie => STORAGE_UTIL.cookie.delete({ name: cookie.name }, () => { if (--countOfCookies <= 0) callback(); }));
-    });
-
-    const setVipCookie = callback => {
-        const userCookies = STORAGE_UTIL.localStorage.get('USER_COOKIES');
-        let countOfCookies = NEEDED_VIP_COOKIES_KEYS.length;
-        for (const key in FORMATED_VIP_COOKIES) {
-            if (FORMATED_VIP_COOKIES.hasOwnProperty(key)) {
-                userCookies.forEach(cookie => {
-                    if (cookie.name === key) {
-                        cookie.value = FORMATED_VIP_COOKIES[key];
-                        STORAGE_UTIL.cookie.set(cookie, () => { if (--countOfCookies <= 0) callback(); });
-                    }
-                });
-            }
-        }
+    const setPlayerVideoQuality = () => {
+        return new Promise(resolve => {
+            const player_settings = UNBLOCK_UTIL.localStorage.get('bilibili_player_settings') || { setting_config: {} };
+            player_settings.setting_config.defquality = parseInt(CURRENT_QUALITY);
+            UNBLOCK_UTIL.localStorage.set('bilibili_player_settings', player_settings);
+            resolve();
+        });
     };
 
-    const recoverUserCookie = callback => {
-        const userCookies = STORAGE_UTIL.localStorage.get('USER_COOKIES');
-        let countOfCookies = userCookies.length;
-        userCookies.forEach(cookie => STORAGE_UTIL.cookie.set(cookie, () => { if (--countOfCookies <= 0) { STORAGE_UTIL.localStorage.delete('USER_COOKIES'); callback(); } }));
+    const saveUserCookie = () => UNBLOCK_UTIL.cookie.list({}).then(cookies => {
+        if (!document.cookie.includes('CURRENT_QUALITY')) {
+            cookies.push({ 'name': 'CURRENT_QUALITY', 'domain': '.bilibili.com', 'path': '/', 'value': CURRENT_QUALITY });
+        }
+        UNBLOCK_UTIL.localStorage.set('USER_COOKIES', cookies);
+        return UNBLOCK_UTIL.operation.promiseAll(cookies, cookie => UNBLOCK_UTIL.cookie.delete({ name: cookie.name }))
+    });
+
+    const setVipCookie = () => {
+        const vipCookies = UNBLOCK_UTIL.localStorage.get('VIP_COOKIES') || [];
+        if (vipCookies.length === 0) {
+            const userCookies = UNBLOCK_UTIL.localStorage.get('USER_COOKIES');
+            const initializeCookieStructure = (name, value) => {
+                const objectCookies = userCookies.filter(cookie => cookie.name === name);
+                if (objectCookies.length > 0) {
+                    objectCookies[0].value = value;
+                    return objectCookies[0];
+                }
+            };
+            for (const key in FORMATED_VIP_COOKIES) {
+                if (FORMATED_VIP_COOKIES.hasOwnProperty(key)) {
+                    vipCookies.push(initializeCookieStructure(key, FORMATED_VIP_COOKIES[key]));
+                }
+            }
+            UNBLOCK_UTIL.localStorage.set('VIP_COOKIES', vipCookies);
+        }
+        return UNBLOCK_UTIL.operation.promiseAll(vipCookies, cookie => UNBLOCK_UTIL.cookie.set(cookie));
+    };
+
+    const recoverUserCookie = () => {
+        return UNBLOCK_UTIL.operation.promiseAll(UNBLOCK_UTIL.localStorage.get('USER_COOKIES'),
+            cookie => UNBLOCK_UTIL.cookie.set(cookie))
+            .then(() => UNBLOCK_UTIL.localStorage.delete('USER_COOKIES'));
+    };
+
+    const getVideoUrl = () => {
+        if (/.+ss\d+.+/.test(location.href) && window.__INITIAL_STATE__) {
+            return window.__INITIAL_STATE__.epInfo.id;
+        }
+        return location.href;
+    };
+
+    const sequence = () => {
+        if (UNBLOCK_UTIL.operation.isLocked()
+            || (window.clicked
+                && getVideoUrl() === UNBLOCK_UTIL.localStorage.get('LAST_PLAY_URL'))
+        ) return;
+        Promise.resolve()
+            .then(() => UNBLOCK_UTIL.operation.lock())
+            .then(() => saveUserCookie())
+            .then(() => setPlayerVideoQuality())
+            .then(() => setVipCookie())
+            .then(() => UNBLOCK_UTIL.operation.unlock())
+            .then(() => location.reload());
     };
 
     const referrer = document.referrer;
-    const sequence = () => {
-        if (OPERATION_UTIL.isLocked()) return;
-        OPERATION_UTIL.lock();
-        saveUserCookie(() => setVipCookie(() => { OPERATION_UTIL.unlock(); location.reload(); }))
-    };
-    if (STORAGE_UTIL.localStorage.get('USER_COOKIES') === null
-        && (/.+video\/(av|bv1).+/i.test(referrer) || referrer === location.href ||
-            (!(/.+video\/(av|bv1).+/i.test(referrer)) && referrer.indexOf('/bangumi/play') < 0)
+    // /.+video\/(av|bv1).+/i.test(referrer)
+    if (UNBLOCK_UTIL.localStorage.get('USER_COOKIES') === null
+        && (referrer === location.href
+            || referrer.indexOf('/bangumi/play') > 0
+            || (!(/.+video\/(av|bv1).+/i.test(referrer))
+                && referrer.indexOf('/bangumi/play') < 0)
         )
     ) {
         sequence();
-    } else {
-        if (OPERATION_UTIL.isLocked()) return;
-        OPERATION_UTIL.lock();
+    } else if (!UNBLOCK_UTIL.operation.isLocked()) {
+        UNBLOCK_UTIL.operation.lock();
         setTimeout(() => {
-            recoverUserCookie(() => {
-                ['.r-con', '.plp-r'].forEach(selector => {
-                    const el = document.querySelector(selector);
-                    if (el) el.addEventListener('click', sequence);
-                });
-                OPERATION_UTIL.unlock();
-            });
-        }, 300);
+            recoverUserCookie()
+                .then(() => {
+                    UNBLOCK_UTIL.localStorage.set('LAST_PLAY_URL', getVideoUrl());
+                    ['.r-con', '.plp-r'].forEach(className => {
+                        const el = document.querySelector(className);
+                        if (el) el.addEventListener('click', () => { window.clicked = true; setTimeout(() => sequence(), 400); });
+                    });
+                })
+                .then(() => UNBLOCK_UTIL.operation.unlock());
+        }, 250);
     }
 })();
