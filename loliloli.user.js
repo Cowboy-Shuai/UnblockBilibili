@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩解析辅助
 // @namespace           https://github.com/vcheckzen/UnblockBilibili/blob/master/loliloli.user.js
-// @version             0.0.7.0
+// @version             0.0.7.1
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         为哔哩哔哩视频注入一键解析按钮
 // @author              https://github.com/vcheckzen
@@ -93,6 +93,7 @@
 
         function replaceInitialState() {
             modifyGlobalValue('__INITIAL_STATE__', value => {
+                value.loaded = false;
                 for (let ep of [value.epInfo, ...value.epList]) {
                     ep.epStatus = 2;
                     ep.loaded = false;
@@ -158,12 +159,13 @@
         const directParse = function () {
             let epId = location.href.match(/ep([\d]+)/);
             if (epId) {
-                epId = epId[1];
+                localStorage.setItem('DIRECT_PARSE', epId[1]);
+                location.reload();
             } else {
                 epId = window.__INITIAL_STATE__.epInfo.id;
+                localStorage.setItem('DIRECT_PARSE', epId);
+                location.href = `https://www.bilibili.com/bangumi/play/ep${epId}`;
             }
-            localStorage.setItem('DIRECT_PARSE', epId);
-            location.reload();
         }
 
         const redirectToAnalysisServer = function () {
