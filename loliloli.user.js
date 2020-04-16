@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩解析辅助
 // @namespace           https://github.com/vcheckzen/UnblockBilibili/blob/master/loliloli.user.js
-// @version             0.0.7.1
+// @version             0.0.7.2
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         为哔哩哔哩视频注入一键解析按钮
 // @author              https://github.com/vcheckzen
@@ -67,7 +67,6 @@
                         resp.data.vip_pay_type = 1;
                         resp.data.vip_theme_type = 2;
                         response.response = JSON.stringify(resp);
-                        console.log(response.response)
                     }
                     handler.next(response);
                 }
@@ -111,7 +110,6 @@
                     delete value.progress;
                     delete value.dialog;
                     value.area_limit = 0;
-                    value.pay = 1;
                     value.vip_info.due_date = Date.now() * 2;
                     value.vip_info.status = 1;
                     value.vip_info.type = 2;
@@ -277,9 +275,9 @@
 
             waitElements('button[class*="fullscreen"]', elem => {
                 elem.addEventListener('click', () => {
-                    const btn = document.querySelector('.btn-anls');
-                    if (btn && !window.player.isFullScreen()) btn.style.display = 'none';
-                    else btn.style.display = 'initial';
+                    const btns = document.querySelectorAll('.btn-anls');
+                    if (btns && !window.player.isFullScreen()) btns.forEach(btn => { btn.style.display = 'none' });
+                    else btns.forEach(btn => { btn.style.display = 'initial' });
                 });
             }, true);
 
