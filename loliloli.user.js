@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩解析辅助
 // @namespace           https://github.com/vcheckzen/UnblockBilibili/blob/master/loliloli.user.js
-// @version             0.0.7.2
+// @version             0.0.7.3
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         为哔哩哔哩视频注入一键解析按钮
 // @author              https://github.com/vcheckzen
@@ -19,11 +19,11 @@
     'use strict';
 
     const LOLILOLI = {
-        PORT: 2333,
+        SERVER: 'http://2333.com:2333',
         TOKEN: ''
     };
 
-    if (location.host === `2333.com:${LOLILOLI.PORT}`) {
+    if (location.host === new URL(LOLILOLI.SERVER).host) {
         const sp = new URLSearchParams(location.search);
         const from = sp.get('from'), p = sp.get('p');
         if (from && /.+(BV1|ep)\w+/.test(from)
@@ -35,6 +35,8 @@
         return;
     }
 
+    LOLILOLI.TOKEN = LOLILOLI.TOKEN || localStorage.getItem('LOLILOLI_TOKEN');
+    localStorage.setItem('LOLILOLI_TOKEN', LOLILOLI.TOKEN);
     const parseEpId = localStorage.getItem('DIRECT_PARSE');
     if (LOLILOLI.TOKEN
         && parseEpId
@@ -45,7 +47,7 @@
                     if (RegExp('.*api.bilibili.com/pgc/player/web/playurl.*').test(config.url)) {
                         const vid = new URLSearchParams(config.url).get('ep_id');
                         if (vid) {
-                            config.url = `http://2333.com:2333/video/?vid=ep${vid}&token=${LOLILOLI.TOKEN}`;
+                            config.url = `${LOLILOLI.SERVER}/video/?vid=ep${vid}&token=${LOLILOLI.TOKEN}`;
                         }
                     }
                     handler.next(config);
@@ -54,7 +56,7 @@
                     handler.next(err);
                 },
                 onResponse: (response, handler) => {
-                    if (RegExp('.*2333.com:2333.*').test(response.config.url)) {
+                    if (RegExp(`.*${LOLILOLI.SERVER}.*`).test(response.config.url)) {
                         if (response.response.code) {
                             alert(response.response.message);
                         }
@@ -168,7 +170,7 @@
 
         const redirectToAnalysisServer = function () {
             const bilibiliHost = 'https://www.bilibili.com/'
-            let analysisServer = `http://2333.com:${LOLILOLI.PORT}/?from=`;
+            let analysisServer = `${LOLILOLI.SERVER}/?from=`;
             if (/.+ep\d+.+/.test(location.href)) {
                 analysisServer += location.href.split('?')[0];
             } else if (/.+ss\d+.+/.test(location.href)) {
