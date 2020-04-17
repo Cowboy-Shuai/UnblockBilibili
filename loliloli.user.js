@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name                哔哩哔哩解析辅助
 // @namespace           https://github.com/vcheckzen/UnblockBilibili/blob/master/loliloli.user.js
-// @version             0.0.7.3
+// @version             0.0.7.4
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         为哔哩哔哩视频注入一键解析按钮
 // @author              https://github.com/vcheckzen
@@ -232,6 +232,7 @@
 
             const hintText = '解析';
             waitElements('.twp-btn.right.vip', elem => {
+                if (elem.innerHTML.indexOf(hintText) > 0) return;
                 const cloneNode = elem.cloneNode(true);
                 cloneNode.innerHTML = '外链' + hintText;
                 cloneNode.onclick = redirectToAnalysisServer;
