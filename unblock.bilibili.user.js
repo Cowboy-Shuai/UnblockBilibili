@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name                哔哩哔哩番剧解锁
 // @namespace           https://github.com/vcheckzen/UnblockBilibili
-// @version             0.1.9.4
 // @icon                https://www.bilibili.com/favicon.ico
 // @description         大会员账号共享解锁脚本
+// @version             0.1.9.5
 // @author              https://github.com/vcheckzen
 // @supportURL          https://github.com/vcheckzen/UnblockBilibili/issues
 // @contributionURL     https://github.com/vcheckzen/UnblockBilibili
@@ -15,13 +15,13 @@
 
 (() => {
     'use strict';
-    // 目前看视频会自动切换到会员账号，其他页面会切回来，暂时没有精力实现精细的登录控制。
+    // 目前看视频会自动切换到会员账号，其他页面会切回来，暂时没有精力实现更精细的登录控制。
     // 下行双引号里面填写大会员 Cookie。复制得到的 Cookie，不要做任何修改，直接粘贴保存。
     // 请务必清空哔哩哔哩 Cookie 和 LocalStorage 重新登录后再使用。
     const ORIGINAL_VIP_COOKIE_STRING = "";
 
-    // 下行双引号里的数字用于控制画质，从高到低依次为 116，112，80，64，32，16，自适应对应 0。
-    const CURRENT_QUALITY = "116";
+    // 下行双引号里的数字用于控制画质，从高到低依次为 120，116，112，80，70，64，32，16，自适应对应 0。
+    const CURRENT_QUALITY = "120";
 
     const NEEDED_VIP_COOKIE_KEYS = ['bili_jct', 'DedeUserID', 'DedeUserID__ckMd5', 'sid', 'SESSDATA', 'CURRENT_QUALITY'];
     const UNBLOCK_UTIL = {
@@ -93,22 +93,18 @@
     });
 
     const setVipCookie = () => {
-        const vipCookies = UNBLOCK_UTIL.localStorage.get('VIP_COOKIES') || [];
-        if (vipCookies.length === 0) {
-            const userCookies = UNBLOCK_UTIL.localStorage.get('USER_COOKIES');
-            const initializeCookieStructure = (name, value) => {
-                const objectCookies = userCookies.filter(cookie => cookie.name === name);
-                if (objectCookies.length > 0) {
-                    objectCookies[0].value = value;
-                    return objectCookies[0];
-                }
-            };
-            for (const key in FORMATED_VIP_COOKIES) {
-                if (FORMATED_VIP_COOKIES.hasOwnProperty(key)) {
-                    vipCookies.push(initializeCookieStructure(key, FORMATED_VIP_COOKIES[key]));
-                }
+        const vipCookies = [], userCookies = UNBLOCK_UTIL.localStorage.get('USER_COOKIES');
+        const initializeCookieStructure = (name, value) => {
+            const objectCookies = userCookies.filter(cookie => cookie.name === name);
+            if (objectCookies.length > 0) {
+                objectCookies[0].value = value;
+                return objectCookies[0];
             }
-            UNBLOCK_UTIL.localStorage.set('VIP_COOKIES', vipCookies);
+        };
+        for (const key in FORMATED_VIP_COOKIES) {
+            if (FORMATED_VIP_COOKIES.hasOwnProperty(key)) {
+                vipCookies.push(initializeCookieStructure(key, FORMATED_VIP_COOKIES[key]));
+            }
         }
         return UNBLOCK_UTIL.operation.promiseAll(vipCookies, cookie => UNBLOCK_UTIL.cookie.set(cookie));
     };
@@ -126,6 +122,19 @@
         return location.href;
     };
 
+    const listenUrlChange = () => {
+        UNBLOCK_UTIL.localStorage.set('LAST_PLAY_URL', getVideoUrl());
+        ['.r-con', '.plp-r'].forEach(className => {
+            const el = document.querySelector(className);
+            if (el) {
+                el.addEventListener('click', () => {
+                    window.clicked = true;
+                    setTimeout(() => sequence(), 400);
+                })
+            };
+        });
+    };
+
     const sequence = () => {
         if (UNBLOCK_UTIL.operation.isLocked()
             || (window.clicked
@@ -141,7 +150,6 @@
     };
 
     const referrer = document.referrer;
-    // /.+video\/(av|bv1).+/i.test(referrer)
     if (UNBLOCK_UTIL.localStorage.get('USER_COOKIES') === null
         && (referrer === location.href
             || referrer.indexOf('/bangumi/play') > 0
@@ -154,13 +162,7 @@
         UNBLOCK_UTIL.operation.lock();
         setTimeout(() => {
             recoverUserCookie()
-                .then(() => {
-                    UNBLOCK_UTIL.localStorage.set('LAST_PLAY_URL', getVideoUrl());
-                    ['.r-con', '.plp-r'].forEach(className => {
-                        const el = document.querySelector(className);
-                        if (el) el.addEventListener('click', () => { window.clicked = true; setTimeout(() => sequence(), 400); });
-                    });
-                })
+                .then(() => listenUrlChange())
                 .then(() => UNBLOCK_UTIL.operation.unlock());
         }, 250);
     }
